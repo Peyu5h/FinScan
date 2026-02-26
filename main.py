@@ -1,24 +1,19 @@
-import io
 import os
 import sys
 import threading
 import time
 import uuid
 from datetime import datetime
-
-from dotenv import load_dotenv
-
-load_dotenv()
+from pathlib import Path
 
 from crewai import Crew, Process
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse
-from scalar_fastapi import get_scalar_api_reference
-from sqlalchemy.orm import Session
+from fastapi.staticfiles import StaticFiles
 
 from agents import financial_analyst, investment_advisor, risk_assessor, verifier
-from db import SessionLocal, create_job, get_db, get_job, init_db, list_jobs, update_job
+from db import SessionLocal, create_job, get_job, init_db, list_jobs, update_job
 from task import (
     analyze_financial_document,
     investment_analysis,
@@ -26,75 +21,45 @@ from task import (
     verify_document,
 )
 
-app = FastAPI(
-    title="FinScan",
-    description="Financial document analyzer powered by CrewAI",
-    version="1.0.0",
-)
+load_dotenv()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+BASE_DIR = Path(__file__).parent
 
-# in-memory log buffer per job, cleared when job finishes
+# in-memory log buffer for streaming
 _job_logs: dict[str, list[str]] = {}
 _logs_lock = threading.Lock()
 
 
-def _append_log(job_id: str, line: str):
-    with _logs_lock:
-        if job_id not in _job_logs:
-            _job_logs[job_id] = []
-        _job_logs[job_id].append(line)
+class LogCapture:
+    """tees stdout into both the terminal and the job log buffer"""
 
-
-def _get_logs(job_id: str) -> str:
-    with _logs_lock:
-        return "\n".join(_job_logs.get(job_id, []))
-
-
-def _clear_logs(job_id: str):
-    with _logs_lock:
-        _job_logs.pop(job_id, None)
-
-
-@app.get("/docs", include_in_schema=False)
-async def scalar_docs():
-    return get_scalar_api_reference(openapi_url="/openapi.json", title="FinScan")
-
-
-@app.on_event("startup")
-def startup():
-    init_db()
-    os.makedirs("data", exist_ok=True)
-
-
-# captures stdout from crew into the job log buffer
-class _LogCapture(io.TextIOBase):
-    def __init__(self, job_id: str, original_stdout):
+    def __init__(self, job_id: str, original):
         self.job_id = job_id
-        self.original = original_stdout
+        self.original = original
 
     def write(self, s):
         if s and s.strip():
-            _append_log(self.job_id, s.rstrip())
+            with _logs_lock:
+                _job_logs.setdefault(self.job_id, []).append(s.rstrip())
         return self.original.write(s)
 
     def flush(self):
         self.original.flush()
 
+    def get_logs(self) -> str:
+        with _logs_lock:
+            return "\n".join(_job_logs.get(self.job_id, []))
 
-# runs the full crew pipeline in a background thread
+
+# runs the full 4-agent crew pipeline in a background thread
 def _run_pipeline(job_id: str, query: str, file_path: str):
     db = SessionLocal()
-    old_stdout = sys.stdout
-    sys.stdout = _LogCapture(job_id, old_stdout)
+    capture = LogCapture(job_id, sys.stdout)
+    sys.stdout = capture
+
     try:
         update_job(db, job_id, status="running")
-        _append_log(job_id, f"[pipeline] starting analysis on {file_path}")
+        print(f"[pipeline] starting analysis on {file_path}")
         t0 = time.time()
 
         crew = Crew(
@@ -110,40 +75,48 @@ def _run_pipeline(job_id: str, query: str, file_path: str):
         )
 
         result = crew.kickoff({"query": query, "file_path": file_path})
-        elapsed = round(time.time() - t0, 2)
 
-        # store final logs alongside result
-        final_logs = _get_logs(job_id)
         update_job(
             db,
             job_id,
             status="done",
             result=str(result),
-            logs=final_logs,
-            duration_sec=elapsed,
+            logs=capture.get_logs(),
+            duration_sec=round(time.time() - t0, 2),
             finished_at=datetime.utcnow(),
         )
 
     except Exception as e:
-        final_logs = _get_logs(job_id)
         update_job(
             db,
             job_id,
             status="failed",
             error=str(e),
-            logs=final_logs,
+            logs=capture.get_logs(),
             finished_at=datetime.utcnow(),
         )
+
     finally:
-        sys.stdout = old_stdout
-        # keep logs around for a bit so the UI can fetch final state,
-        # they'll get cleaned up on next job or server restart
+        sys.stdout = capture.original
         if os.path.exists(file_path) and file_path.startswith("data/upload_"):
             try:
                 os.remove(file_path)
             except OSError:
                 pass
         db.close()
+
+
+app = FastAPI(
+    title="FinScan",
+    description="Financial document analyzer powered by CrewAI",
+    version="1.0.0",
+)
+
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+# init db and data dir on startup
+init_db()
+os.makedirs("data", exist_ok=True)
 
 
 @app.get("/")
@@ -153,11 +126,10 @@ async def health():
 
 @app.get("/ui", response_class=HTMLResponse)
 async def ui():
-    path = os.path.join(os.path.dirname(__file__), "static", "index.html")
-    if not os.path.exists(path):
-        raise HTTPException(404, "ui not found")
-    with open(path, encoding="utf-8") as f:
-        return f.read()
+    path = BASE_DIR / "static" / "index.html"
+    if not path.exists():
+        raise HTTPException(404, f"ui not found at {path}")
+    return path.read_text(encoding="utf-8")
 
 
 @app.post("/analyze")
@@ -166,22 +138,24 @@ async def analyze(
     query: str = Form(
         default="Analyze this financial document for investment insights"
     ),
-    db: Session = Depends(get_db),
 ):
-    if not file.filename.lower().endswith(".pdf"):
+    filename = file.filename or ""
+    if not filename.lower().endswith(".pdf"):
         raise HTTPException(400, "only pdf files are supported")
 
     job_id = str(uuid.uuid4())
     file_path = f"data/upload_{job_id[:8]}.pdf"
 
-    content = await file.read()
     with open(file_path, "wb") as f:
-        f.write(content)
+        f.write(await file.read())
 
-    query = (
-        query or ""
-    ).strip() or "Analyze this financial document for investment insights"
-    create_job(db, job_id, file.filename, query)
+    query = query.strip() or "Analyze this financial document for investment insights"
+
+    db = SessionLocal()
+    try:
+        create_job(db, job_id, filename, query)
+    finally:
+        db.close()
 
     threading.Thread(
         target=_run_pipeline, args=(job_id, query, file_path), daemon=True
@@ -199,7 +173,6 @@ async def analyze_sample(
     query: str = Form(
         default="Analyze this financial document for investment insights"
     ),
-    db: Session = Depends(get_db),
 ):
     sample = "data/TSLA-Q2-2025-Update.pdf"
     if not os.path.exists(sample):
@@ -208,10 +181,13 @@ async def analyze_sample(
         )
 
     job_id = str(uuid.uuid4())
-    query = (
-        query or ""
-    ).strip() or "Analyze this financial document for investment insights"
-    create_job(db, job_id, "TSLA-Q2-2025-Update.pdf", query)
+    query = query.strip() or "Analyze this financial document for investment insights"
+
+    db = SessionLocal()
+    try:
+        create_job(db, job_id, "TSLA-Q2-2025-Update.pdf", query)
+    finally:
+        db.close()
 
     threading.Thread(
         target=_run_pipeline, args=(job_id, query, sample), daemon=True
@@ -225,48 +201,53 @@ async def analyze_sample(
 
 
 @app.get("/status/{job_id}")
-async def status(job_id: str, db: Session = Depends(get_db)):
-    job = get_job(db, job_id)
-    if not job:
-        raise HTTPException(404, "job not found")
+async def status(job_id: str):
+    db = SessionLocal()
+    try:
+        job = get_job(db, job_id)
+        if not job:
+            raise HTTPException(404, "job not found")
 
-    out = {
-        "job_id": job.job_id,
-        "status": job.status,
-        "filename": job.filename,
-        "query": job.query,
-        "created_at": str(job.created_at),
-    }
+        is_live = str(job.status) in ("pending", "running")
 
-    # live logs while running, stored logs after completion
-    if job.status in ("pending", "running"):
-        out["logs"] = _get_logs(job_id)
-    else:
-        out["logs"] = job.logs or ""
+        out = {
+            "job_id": job.job_id,
+            "status": job.status,
+            "filename": job.filename,
+            "query": job.query,
+            "created_at": str(job.created_at),
+            "logs": _job_logs.get(job_id, []) if is_live else (job.logs or ""),
+        }
 
-    if job.status == "done":
-        out["result"] = job.result
-        out["duration_sec"] = job.duration_sec
-        out["finished_at"] = str(job.finished_at)
-    elif job.status == "failed":
-        out["error"] = job.error
+        if str(job.status) == "done":
+            out["result"] = job.result
+            out["duration_sec"] = job.duration_sec
+            out["finished_at"] = str(job.finished_at)
+        elif str(job.status) == "failed":
+            out["error"] = job.error
 
-    return out
+        return out
+    finally:
+        db.close()
 
 
 @app.get("/history")
-async def history(limit: int = 20, db: Session = Depends(get_db)):
-    return [
-        {
-            "job_id": j.job_id,
-            "filename": j.filename,
-            "status": j.status,
-            "query": j.query,
-            "duration_sec": j.duration_sec,
-            "created_at": str(j.created_at),
-        }
-        for j in list_jobs(db, limit)
-    ]
+async def history(limit: int = 20):
+    db = SessionLocal()
+    try:
+        return [
+            {
+                "job_id": j.job_id,
+                "filename": j.filename,
+                "status": j.status,
+                "query": j.query,
+                "duration_sec": j.duration_sec,
+                "created_at": str(j.created_at),
+            }
+            for j in list_jobs(db, limit)
+        ]
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":
