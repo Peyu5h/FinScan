@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from typing import Generator
 
 from sqlalchemy import Column, DateTime, Float, Integer, String, Text, create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
@@ -32,7 +33,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
 
 
-def get_db() -> Session:
+def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db

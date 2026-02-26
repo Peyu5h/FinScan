@@ -37,7 +37,6 @@ verifier = Agent(
     role="Financial Document Verifier",
     goal="Verify the uploaded file is a real financial document and flag any quality issues.",
     verbose=True,
-    memory=True,
     backstory=(
         "Compliance officer with years of experience validating SEC filings, "
         "earnings reports, and balance sheets. You check for real financial data "
@@ -54,7 +53,6 @@ financial_analyst = Agent(
     role="Senior Financial Analyst",
     goal="Analyze the financial document to answer: {query}",
     verbose=True,
-    memory=True,
     backstory=(
         "12 years in equity research and corporate finance. You read quarterly "
         "reports, 10-Ks, and balance sheets daily. You pull concrete numbers — "
@@ -73,7 +71,6 @@ investment_advisor = Agent(
     role="Investment Advisor",
     goal="Provide data-backed investment recommendations from the analyzed document.",
     verbose=True,
-    memory=True,
     backstory=(
         "CFA charterholder with 10 years managing portfolios. You translate "
         "financial metrics into buy/hold/sell calls with clear reasoning, always "
@@ -90,7 +87,6 @@ risk_assessor = Agent(
     role="Risk Assessment Specialist",
     goal="Identify and quantify financial risks including market, credit, and operational exposure.",
     verbose=True,
-    memory=True,
     backstory=(
         "Risk management professional from major financial institutions. You "
         "stress-test assumptions, evaluate downside scenarios, and provide risk "

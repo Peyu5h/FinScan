@@ -71,6 +71,7 @@ def _run_pipeline(job_id: str, query: str, file_path: str):
                 risk_assessment,
             ],
             process=Process.sequential,
+            memory=True,
             verbose=True,
         )
 
