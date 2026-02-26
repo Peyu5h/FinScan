@@ -1,7 +1,6 @@
 import os
 from typing import Type
 
-import httpx
 from crewai.tools import BaseTool
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -60,25 +59,31 @@ class FinancialDocumentTool(BaseTool):
 
 
 class SearchInput(BaseModel):
-    query: str = Field(..., description="search query")
+    search_query: str = Field(..., description="search query to look up")
 
 
-# web search via serper.dev
-class WebSearchTool(BaseTool):
-    name: str = "web_search"
-    description: str = "Searches the web for current market data and financial news."
+# serper-compatible search tool using crewai_tools.SerperDevTool interface
+class SerperDevTool(BaseTool):
+    name: str = "Search the internet"
+    description: str = (
+        "A tool that can be used to search the internet with a search_query."
+    )
     args_schema: Type[BaseModel] = SearchInput
 
-    def _run(self, query: str) -> str:
+    def _run(self, search_query: str) -> str:
+        import httpx
+
         api_key = os.getenv("SERPER_API_KEY", "")
         if not api_key:
             return "web search unavailable (SERPER_API_KEY not set)"
+
+        print(f"[tools] websearch: {search_query}")
 
         try:
             resp = httpx.post(
                 "https://google.serper.dev/search",
                 headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
-                json={"q": query, "num": 5},
+                json={"q": search_query, "num": 5},
                 timeout=15,
             )
             resp.raise_for_status()
@@ -91,7 +96,9 @@ class WebSearchTool(BaseTool):
                 link = item.get("link", "")
                 lines.append(f"- {title}: {snippet} ({link})")
 
-            return "\n".join(lines) if lines else "no results found"
+            result = "\n".join(lines) if lines else "no results found"
+            print(f"[tools] SerperDevTool got {len(lines)} results")
+            return result
 
         except Exception as e:
             return f"search failed: {e}"
@@ -99,4 +106,4 @@ class WebSearchTool(BaseTool):
 
 # tool instances used by agents
 pdf_tool = FinancialDocumentTool()
-search_tool = WebSearchTool()
+search_tool = SerperDevTool()

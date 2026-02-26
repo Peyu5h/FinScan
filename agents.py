@@ -3,7 +3,9 @@ import os
 from crewai import LLM, Agent
 from dotenv import load_dotenv
 
-from tools import pdf_tool, search_tool
+from tools import SerperDevTool, pdf_tool
+
+search_tool = SerperDevTool()
 
 load_dotenv()
 

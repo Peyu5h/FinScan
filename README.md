@@ -22,7 +22,7 @@ Docs: https://finscan.peyush.in/docs
 - `Pdf(file_path=path).load()` was never imported and isn't a real class, replaced with `pypdf.PdfReader`
 - All tool methods were `async` but CrewAI tools need synchronous `_run()` via `BaseTool`
 - `FinancialDocumentTool`, `InvestmentTool`, `RiskTool` were plain classes, not `BaseTool` subclasses, so CrewAI couldn't register them as tools
-- `SerperDevTool()` broken on py3.13, wrote a simple `WebSearchTool` using httpx + Serper API
+- `SerperDevTool()` from `crewai-tools==0.47.1` broken on py3.13 (pulls `embedchain` with no py3.13 wheel), reimplemented as a drop-in `SerperDevTool` class using `httpx` + Serper API directly with the same name and interface as the original
 
 **`agents.py`**
 
@@ -151,5 +151,4 @@ Response statuses: `pending` -> `running` -> `done` / `failed`
 - **pypdf** - PDF extraction with smart truncation
 - **SQLAlchemy** + SQLite - job and log persistence
 - **Scalar** - interactive API docs at `/docs`
-- **httpx** - web search via Serper.dev
 - **threading** - background pipeline with stdout log capture
