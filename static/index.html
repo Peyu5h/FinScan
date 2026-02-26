@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FinScan</title>
+    <style>
+      :root {
+        --bg: #0c0c0d;
+        --surface: #161618;
+        --border: #27272a;
+        --text: #e4e4e7;
+        --muted: #71717a;
+        --accent: #3b82f6;
+        --green: #22c55e;
+        --red: #ef4444;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 820px;
+        margin: 0 auto;
+        padding: 28px 20px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 28px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      header h1 {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      header h1 b {
+        color: var(--accent);
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--red);
+        display: inline-block;
+      }
+      .dot.ok {
+        background: var(--green);
+      }
+      .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 20px;
+      }
+      .tabs button {
+        padding: 7px 16px;
+        font-size: 13px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        transition: 0.15s;
+      }
+      .tabs button:hover {
+        color: var(--text);
+      }
+      .tabs button.on {
+        background: var(--surface);
+        color: var(--text);
+        border-color: var(--accent);
+      }
+      .panel {
+        display: none;
+      }
+      .panel.on {
+        display: block;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 16px;
+      }
+      .card h3 {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--muted);
+        margin-bottom: 14px;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      textarea {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 13px;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        resize: vertical;
+        min-height: 60px;
+        font-family: inherit;
+      }
+      textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .drop-zone {
+        border: 1.5px dashed var(--border);
+        border-radius: 8px;
+        padding: 28px;
+        text-align: center;
+        cursor: pointer;
+        margin-bottom: 14px;
+        position: relative;
+        transition: 0.15s;
+      }
+      .drop-zone:hover,
+      .drop-zone.over {
+        border-color: var(--accent);
+      }
+      .drop-zone input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+      .drop-zone p {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .drop-zone .picked {
+        color: var(--text);
+        font-size: 13px;
+        margin-top: 4px;
+      }
+      .btns {
+        display: flex;
+        gap: 8px;
+        margin-top: 14px;
+        flex-wrap: wrap;
+      }
+      .btns button {
+        padding: 8px 18px;
+        font-size: 13px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        cursor: pointer;
+        font-weight: 500;
+        transition: 0.15s;
+      }
+      .btns button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .btn-go {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      .btn-go:hover:not(:disabled) {
+        background: #2563eb;
+      }
+      .btn-alt {
+        background: transparent;
+        color: var(--text);
+      }
+      .btn-alt:hover:not(:disabled) {
+        background: var(--border);
+      }
+      .btn-sm {
+        padding: 4px 12px;
+        font-size: 12px;
+        background: transparent;
+        color: var(--muted);
+      }
+      .status {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        margin-bottom: 16px;
+        font-size: 13px;
+      }
+      .status.on {
+        display: flex;
+      }
+      .spin {
+        width: 16px;
+        height: 16px;
+        border: 2px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .result {
+        display: none;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 20px;
+        white-space: pre-wrap;
+        font-size: 13px;
+        line-height: 1.6;
+        max-height: 520px;
+        overflow-y: auto;
+        word-break: break-word;
+      }
+      .result.on {
+        display: block;
+      }
+      .logs-toggle {
+        display: none;
+        margin-bottom: 12px;
+      }
+      .logs-toggle.on {
+        display: block;
+      }
+      .logs-toggle button {
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        padding: 5px 12px;
+        cursor: pointer;
+      }
+      .logs-toggle button:hover {
+        color: var(--text);
+      }
+      .logs-box {
+        display: none;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px;
+        white-space: pre-wrap;
+        font-size: 11px;
+        font-family: "SF Mono", Consolas, monospace;
+        line-height: 1.5;
+        max-height: 320px;
+        overflow-y: auto;
+        color: var(--muted);
+        word-break: break-word;
+        margin-bottom: 16px;
+      }
+      .logs-box.on {
+        display: block;
+      }
+      .err {
+        display: none;
+        color: var(--red);
+        font-size: 13px;
+        padding: 10px 14px;
+        border-radius: 6px;
+        background: rgba(239, 68, 68, 0.08);
+        margin-bottom: 12px;
+      }
+      .err.on {
+        display: block;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th {
+        text-align: left;
+        padding: 10px 12px;
+        color: var(--muted);
+        border-bottom: 1px solid var(--border);
+        font-weight: 500;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+      td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+      }
+      tr:last-child td {
+        border: none;
+      }
+      .link {
+        color: var(--accent);
+        cursor: pointer;
+        text-decoration: none;
+      }
+      .link:hover {
+        text-decoration: underline;
+      }
+      .pill {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-weight: 500;
+      }
+      .pill-pending {
+        background: rgba(234, 179, 8, 0.12);
+        color: #eab308;
+      }
+      .pill-running {
+        background: rgba(59, 130, 246, 0.12);
+        color: var(--accent);
+      }
+      .pill-done {
+        background: rgba(34, 197, 94, 0.12);
+        color: var(--green);
+      }
+      .pill-failed {
+        background: rgba(239, 68, 68, 0.12);
+        color: var(--red);
+      }
+      .empty {
+        padding: 32px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .ep {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0;
+        font-size: 13px;
+        font-family: monospace;
+      }
+      .method {
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-family: sans-serif;
+      }
+      .m-get {
+        background: rgba(34, 197, 94, 0.12);
+        color: var(--green);
+      }
+      .m-post {
+        background: rgba(59, 130, 246, 0.12);
+        color: var(--accent);
+      }
+      @media (max-width: 600px) {
+        .wrap {
+          padding: 16px 12px;
+        }
+        .btns {
+          flex-direction: column;
+        }
+        .btns button {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1><b>FinScan</b></h1>
+        <span class="dot" id="dot"></span>
+      </header>
+
+      <div class="tabs">
+        <button class="on" data-t="analyze">Analyze</button>
+        <button data-t="history">History</button>
+        <button data-t="api">API</button>
+      </div>
+
+      <!-- analyze -->
+      <div id="p-analyze" class="panel on">
+        <div class="card">
+          <h3>Upload Document</h3>
+          <div class="drop-zone" id="drop">
+            <input type="file" id="file" accept=".pdf" />
+            <p>Drop a PDF here or click to browse</p>
+            <div class="picked" id="fname"></div>
+          </div>
+          <label>Query (optional)</label>
+          <textarea
+            id="query"
+            placeholder="e.g. What are the key revenue drivers?"
+          ></textarea>
+          <div class="btns">
+            <button class="btn-go" id="go" disabled>Analyze</button>
+            <button class="btn-alt" id="sample">Use Sample PDF</button>
+            <button class="btn-alt" id="clear">Clear</button>
+          </div>
+          <div class="err" id="err"></div>
+        </div>
+
+        <div class="status" id="bar">
+          <div class="spin"></div>
+          <span id="bar-text">Starting...</span>
+          <span
+            style="margin-left: auto; color: var(--muted)"
+            id="bar-time"
+          ></span>
+        </div>
+
+        <div class="logs-toggle" id="logs-toggle">
+          <button onclick="toggleLogs()">Show agent logs</button>
+        </div>
+        <div class="logs-box" id="logs-box"></div>
+
+        <div class="result" id="out"></div>
+      </div>
+
+      <!-- history -->
+      <div id="p-history" class="panel">
+        <div class="card" style="padding: 0; overflow: hidden">
+          <div
+            style="
+              padding: 14px 16px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              border-bottom: 1px solid var(--border);
+            "
+          >
+            <h3 style="margin: 0">Past Analyses</h3>
+            <button class="btn-sm" id="refresh">Refresh</button>
+          </div>
+          <div id="hist"><div class="empty">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- api -->
+      <div id="p-api" class="panel">
+        <div class="card">
+          <h3>Endpoints</h3>
+          <div class="ep"><span class="method m-get">GET</span> /</div>
+          <div class="ep"><span class="method m-post">POST</span> /analyze</div>
+          <div class="ep">
+            <span class="method m-post">POST</span> /analyze/sample
+          </div>
+          <div class="ep">
+            <span class="method m-get">GET</span> /status/{job_id}
+          </div>
+          <div class="ep">
+            <span class="method m-get">GET</span> /history?limit=20
+          </div>
+          <div class="ep"><span class="method m-get">GET</span> /docs</div>
+        </div>
+        <div class="card">
+          <h3>Quick Reference</h3>
+          <pre
+            style="
+              font-size: 12px;
+              line-height: 1.6;
+              color: var(--muted);
+              white-space: pre-wrap;
+            "
+          >
+POST /analyze
+  form: file (pdf), query (string, optional)
+  → { job_id, status, message }
+
+GET /status/{job_id}
+  → { job_id, status, result?, error?, duration_sec? }
+
+GET /docs
+  → interactive api docs (Scalar)
+
+curl -X POST http://localhost:8000/analyze \
+  -F "file=@report.pdf" \
+  -F "query=What are the key revenue drivers?"
+
+curl http://localhost:8000/status/{job_id}</pre
+          >
+        </div>
+      </div>
+    </div>
+
+    <script>
+      var API = window.location.origin;
+      var poll = null;
+      var t0 = null;
+
+      // tabs
+      document.querySelectorAll(".tabs button").forEach(function (btn) {
+        btn.onclick = function () {
+          document.querySelectorAll(".tabs button").forEach(function (b) {
+            b.classList.remove("on");
+          });
+          document.querySelectorAll(".panel").forEach(function (p) {
+            p.classList.remove("on");
+          });
+          btn.classList.add("on");
+          document.getElementById("p-" + btn.dataset.t).classList.add("on");
+          if (btn.dataset.t === "history") loadHistory();
+        };
+      });
+
+      // health
+      function ping() {
+        fetch(API + "/")
+          .then(function (r) {
+            document.getElementById("dot").classList.toggle("ok", r.ok);
+          })
+          .catch(function () {
+            document.getElementById("dot").classList.remove("ok");
+          });
+      }
+      ping();
+      setInterval(ping, 30000);
+
+      // file handling
+      var fileEl = document.getElementById("file");
+      var dropEl = document.getElementById("drop");
+      var goBtn = document.getElementById("go");
+
+      fileEl.onchange = function () {
+        if (fileEl.files.length) {
+          document.getElementById("fname").textContent = fileEl.files[0].name;
+          goBtn.disabled = false;
+        }
+      };
+
+      dropEl.ondragover = function (e) {
+        e.preventDefault();
+        dropEl.classList.add("over");
+      };
+      dropEl.ondragleave = function () {
+        dropEl.classList.remove("over");
+      };
+      dropEl.ondrop = function (e) {
+        e.preventDefault();
+        dropEl.classList.remove("over");
+        var f = e.dataTransfer.files;
+        if (f.length && f[0].name.endsWith(".pdf")) {
+          fileEl.files = f;
+          document.getElementById("fname").textContent = f[0].name;
+          goBtn.disabled = false;
+        }
+      };
+
+      // clear
+      document.getElementById("clear").onclick = function () {
+        fileEl.value = "";
+        document.getElementById("fname").textContent = "";
+        document.getElementById("query").value = "";
+        goBtn.disabled = true;
+        hide("bar");
+        hide("out");
+        hide("err");
+        hideLogs();
+      };
+
+      // analyze
+      goBtn.onclick = function () {
+        if (!fileEl.files.length) return;
+        hide("err");
+        var fd = new FormData();
+        fd.append("file", fileEl.files[0]);
+        var q = document.getElementById("query").value.trim();
+        if (q) fd.append("query", q);
+        lock();
+        fetch(API + "/analyze", { method: "POST", body: fd })
+          .then(parse)
+          .then(function (r) {
+            startPoll(r.data.job_id);
+          })
+          .catch(function (e) {
+            showErr(e.message);
+            unlock();
+          });
+      };
+
+      // sample
+      document.getElementById("sample").onclick = function () {
+        hide("err");
+        var fd = new FormData();
+        var q = document.getElementById("query").value.trim();
+        if (q) fd.append("query", q);
+        lock();
+        fetch(API + "/analyze/sample", { method: "POST", body: fd })
+          .then(parse)
+          .then(function (r) {
+            startPoll(r.data.job_id);
+          })
+          .catch(function (e) {
+            showErr(e.message);
+            unlock();
+          });
+      };
+
+      function parse(res) {
+        return res.json().then(function (d) {
+          if (!res.ok) throw new Error(d.detail || "request failed");
+          return { ok: true, data: d };
+        });
+      }
+
+      var logsVisible = false;
+
+      function toggleLogs() {
+        logsVisible = !logsVisible;
+        var box = document.getElementById("logs-box");
+        var btn = document.querySelector("#logs-toggle button");
+        if (logsVisible) {
+          box.classList.add("on");
+          btn.textContent = "Hide agent logs";
+        } else {
+          box.classList.remove("on");
+          btn.textContent = "Show agent logs";
+        }
+      }
+
+      function updateLogs(text) {
+        if (!text) return;
+        var box = document.getElementById("logs-box");
+        box.textContent = text;
+        show("logs-toggle");
+        if (logsVisible) {
+          box.scrollTop = box.scrollHeight;
+        }
+      }
+
+      function hideLogs() {
+        hide("logs-toggle");
+        hide("logs-box");
+        logsVisible = false;
+      }
+
+      function startPoll(id) {
+        t0 = Date.now();
+        show("bar");
+        document.getElementById("bar-text").textContent =
+          "Running... " + id.slice(0, 8);
+        hide("out");
+        hideLogs();
+
+        poll = setInterval(function () {
+          var sec = Math.floor((Date.now() - t0) / 1000);
+          document.getElementById("bar-time").textContent = sec + "s";
+
+          fetch(API + "/status/" + id)
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (d) {
+              if (d.logs) updateLogs(d.logs);
+
+              if (d.status === "done") {
+                clearInterval(poll);
+                hide("bar");
+                if (d.logs) updateLogs(d.logs);
+                showResult(d.result, d.duration_sec);
+                unlock();
+              } else if (d.status === "failed") {
+                clearInterval(poll);
+                hide("bar");
+                if (d.logs) updateLogs(d.logs);
+                showErr(d.error || "analysis failed");
+                unlock();
+              }
+            });
+        }, 2500);
+      }
+
+      function showResult(text, dur) {
+        var el = document.getElementById("out");
+        var h = dur
+          ? "Completed in " + dur + "s\n" + "\u2500".repeat(40) + "\n\n"
+          : "";
+        el.textContent = h + (text || "No output.");
+        show("out");
+      }
+
+      function showErr(msg) {
+        var el = document.getElementById("err");
+        el.textContent = msg;
+        show("err");
+      }
+
+      function show(id) {
+        document.getElementById(id).classList.add("on");
+      }
+      function hide(id) {
+        document.getElementById(id).classList.remove("on");
+      }
+      function lock() {
+        goBtn.disabled = true;
+        document.getElementById("sample").disabled = true;
+      }
+      function unlock() {
+        goBtn.disabled = !fileEl.files.length;
+        document.getElementById("sample").disabled = false;
+      }
+
+      // history
+      function loadHistory() {
+        var el = document.getElementById("hist");
+        fetch(API + "/history?limit=30")
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (jobs) {
+            if (!jobs.length) {
+              el.innerHTML = '<div class="empty">No analyses yet.</div>';
+              return;
+            }
+            var h =
+              "<table><thead><tr><th>Job</th><th>File</th><th>Status</th><th>Time</th></tr></thead><tbody>";
+            for (var i = 0; i < jobs.length; i++) {
+              var j = jobs[i];
+              var dur = j.duration_sec ? j.duration_sec + "s" : "\u2014";
+              h += "<tr>";
+              h +=
+                '<td><span class="link" onclick="viewJob(\'' +
+                j.job_id +
+                "')\">" +
+                j.job_id.slice(0, 8) +
+                "</span></td>";
+              h += "<td>" + (j.filename || "\u2014") + "</td>";
+              h +=
+                '<td><span class="pill pill-' +
+                j.status +
+                '">' +
+                j.status +
+                "</span></td>";
+              h += "<td>" + dur + "</td>";
+              h += "</tr>";
+            }
+            h += "</tbody></table>";
+            el.innerHTML = h;
+          })
+          .catch(function () {
+            el.innerHTML = '<div class="empty">Failed to load.</div>';
+          });
+      }
+
+      function viewJob(id) {
+        // switch to analyze tab
+        document.querySelectorAll(".tabs button").forEach(function (b) {
+          b.classList.remove("on");
+        });
+        document.querySelectorAll(".panel").forEach(function (p) {
+          p.classList.remove("on");
+        });
+        document.querySelector('[data-t="analyze"]').classList.add("on");
+        document.getElementById("p-analyze").classList.add("on");
+        hide("err");
+
+        fetch(API + "/status/" + id)
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            if (d.status === "done") showResult(d.result, d.duration_sec);
+            else if (d.status === "failed") showErr(d.error || "failed");
+            else startPoll(id);
+          });
+      }
+
+      document.getElementById("refresh").onclick = loadHistory;
+    </script>
+  </body>
+</html>
