@@ -1,14 +1,14 @@
-# FinScan — Financial Document Analyzer
+## FinScan - Financial Document Analyzer
 
 A CrewAI-based system that analyzes financial documents (earnings reports, 10-Ks, balance sheets) using a pipeline of four AI agents. Upload a PDF, get back a structured breakdown with key metrics, investment outlook, and risk assessment.
 
-Live:
+Live: https://finscan.peyush.in/ui
 
 ---
 
-## Bugs Found & Fixed
+### Bugs Found & Fixed
 
-### Deterministic Bugs
+#### Deterministic Bugs
 
 **`requirements.txt`**
 
@@ -46,7 +46,7 @@ Live:
 - Crew only ran one agent and one task instead of the full four-agent pipeline.
 - Synchronous `run_crew()` blocked the async event loop on upload — moved to background threads.
 
-### Prompt Issues
+#### Prompt Issues
 
 Every agent backstory and task description was intentionally sabotaged:
 
@@ -55,7 +55,7 @@ Every agent backstory and task description was intentionally sabotaged:
 
 Rewrote all prompts to be grounded — agents now cite specific numbers from the document, never fabricate sources, disclose risks properly, and actually answer the user's query.
 
-### Efficiency Fixes
+#### Efficiency Fixes
 
 - **PDF truncation** — the Tesla PDF is 30 pages / ~39k chars. Dumping all of that into one tool response blew past Groq's tokens-per-minute limit. The PDF tool now keeps the first and last ~7.5k chars (capturing the summary + financials) and notes the truncation, keeping total context manageable.
 - **Downstream agents stripped of tools** — the investment advisor and risk assessor were given `[pdf_tool, search_tool]` even though they receive everything via context from the analyst. Removing tools prevents the LLM from wasting iterations on redundant reads.
@@ -63,7 +63,7 @@ Rewrote all prompts to be grounded — agents now cite specific numbers from the
 
 ---
 
-## Architecture
+### Architecture
 
 - **Verifier** reads the PDF, confirms it's a real financial document.
 - **Analyst** reads the PDF, extracts metrics, answers the user query.
@@ -74,7 +74,7 @@ Only the first two agents touch the PDF tool, keeping token usage low.
 
 ---
 
-## Setup
+### Setup
 
 ```sh
 git clone https://github.com/Peyu5h/FinScan.git
@@ -91,7 +91,7 @@ cp .env.example .env
 # add at least one LLM key
 ```
 
-**Get your keys:**
+Get your keys:
 
 - [Groq](https://console.groq.com/keys) - preferred, generous free tier, llama-3.3-70b
 - [Cloudflare Workers AI](https://dash.cloudflare.com/) — fallback, llama-3.3-70b-fp8-fast (needs account ID + API token)
@@ -100,8 +100,7 @@ cp .env.example .env
 
 The LLM fallback chain is: **Groq => Cloudflare Workers AI => Gemini**. You only need one.
 
-**Run:**
-
+Run:
 ```sh
 python main.py
 ```
@@ -112,7 +111,7 @@ python main.py
 
 ---
 
-## API
+### API
 
 | Method | Endpoint            | Description                                   |
 | ------ | ------------------- | --------------------------------------------- |
@@ -146,21 +145,21 @@ curl -X POST http://localhost:8000/analyze/sample
 
 Response statuses: `pending` => `running` => `done` / `failed`
 
-## Database Integration
+### Database Integration
 
 All analysis jobs persist to `data/finscan.db` (SQLite via SQLAlchemy). Stores job ID, filename, query, status, full result, error, agent logs, processing duration, and timestamps. Query past results via `GET /history`.
 
-## Concurrent Request Handling
+### Concurrent Request Handling
 
 Each crew pipeline runs in a background thread — the API never blocks. Clients submit a job and poll `/status/{job_id}`. Multiple analyses can run in parallel.
 
-## Live Agent Logs
+### Live Agent Logs
 
 The test UI at `/ui` has a "Show agent logs" toggle that streams the agent thinking process in real time while analysis runs. Stdout from the crew thread is captured into an in-memory buffer, served live via the `logs` field in `/status/{job_id}`, and persisted to the DB on completion.
 
 ---
 
-## Tech Stack
+### Tech Stack
 
 - **CrewAI 0.130.0** - agent orchestration
 - **Groq / Cloudflare Workers AI / Gemini** - LLM providers
